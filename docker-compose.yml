@@ -1,0 +1,17 @@
+services:
+  openclaw:
+    build: .
+    container_name: openclaw-screener
+    ports:
+      - "${OPENCLAW_PORT:-18789}:18789"
+      - "8900:8900"
+    env_file:
+      - .env
+    volumes:
+      - openclaw-data:/root/.openclaw/data
+      - watchlist-data:/root
+    restart: unless-stopped
+
+volumes:
+  openclaw-data:
+  watchlist-data:

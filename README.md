@@ -103,6 +103,38 @@ bun run src/analyze.ts GOOGL --format json
 bun run src/analyze.ts PTT.BK
 ```
 
+## Telegram Channel
+
+You can connect this screener to Telegram so you can interact with OpenClaw directly from a Telegram chat.
+
+### Setup
+
+1. **Create a bot** -- open Telegram, search for **@BotFather**, send `/newbot`, and follow the prompts. Copy the bot token it gives you.
+
+2. **Get your Telegram user ID** -- search for **@userinfobot** on Telegram and send it a message. It will reply with your numeric user ID.
+
+3. **Configure env vars** -- add the following to your `.env`:
+
+   ```env
+   TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+   TELEGRAM_DM_POLICY=pairing
+   # TELEGRAM_ALLOWED_IDS=123456789,987654321
+   ```
+
+   | Variable | Description | Default |
+   |----------|-------------|---------|
+   | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | *(required)* |
+   | `TELEGRAM_DM_POLICY` | `pairing` / `allowlist` / `open` / `disabled` | `pairing` |
+   | `TELEGRAM_ALLOWED_IDS` | Comma-separated Telegram user IDs (for `allowlist` mode) | — |
+
+4. **Restart the container**:
+
+   ```bash
+   docker compose down && docker compose up -d
+   ```
+
+5. **Start chatting** -- open your bot in Telegram and send `/start`. If using `pairing` mode, the gateway will give you an approval code on first contact.
+
 ## Buffett's 10 Formulas
 
 The fundamental analysis evaluates stocks against Warren Buffett's criteria:

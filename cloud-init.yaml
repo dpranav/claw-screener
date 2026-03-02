@@ -1,0 +1,118 @@
+#cloud-config
+#
+# Azure VM first-boot provisioning for OpenClaw + dual Telegram agents + ClawMetry.
+# Usage:
+#   az vm create ... --custom-data cloud-init.yaml
+#
+# IMPORTANT:
+# - Replace placeholder values in /opt/openclaw/bootstrap.env below before using in production.
+# - This file may contain secrets if you inline real API keys/tokens. Keep it private.
+
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+
+write_files:
+  - path: /opt/openclaw/bootstrap.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      # --- REQUIRED: edit these values ---
+      OPENCLAW_REPO_URL=https://github.com/<your-user>/claw-screener.git
+      OPENCLAW_REPO_BRANCH=main
+
+      # LLM provider key (set at least one)
+      ANTHROPIC_API_KEY=replace_me
+      # OPENAI_API_KEY=
+      # XAI_API_KEY=
+
+      # Telegram routing
+      TELEGRAM_BOT_TOKEN=replace_main_bot_token
+      PRESALES_TELEGRAM_BOT_TOKEN=replace_presales_bot_token
+
+      # Skill API keys
+      GEMINI_API_KEY=replace_gemini_key
+
+      # Optional OpenClaw settings
+      OPENCLAW_PROVIDER=anthropic
+      OPENCLAW_MODEL=claude-opus-4-6
+      OPENCLAW_PORT=18789
+      TELEGRAM_DM_POLICY=pairing
+      OPENCLAW_TIMEOUT_SECONDS=180
+
+  - path: /usr/local/bin/openclaw-firstboot.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/openclaw-firstboot.log"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      ENV_FILE="/opt/openclaw/bootstrap.env"
+      [[ -f "$ENV_FILE" ]] || { echo "[firstboot] Missing $ENV_FILE"; exit 1; }
+      # shellcheck disable=SC1090
+      source "$ENV_FILE"
+
+      # Minimal validation before proceeding
+      [[ "${OPENCLAW_REPO_URL:-}" != "" ]] || { echo "[firstboot] OPENCLAW_REPO_URL is required"; exit 1; }
+      [[ "${TELEGRAM_BOT_TOKEN:-}" != "replace_main_bot_token" ]] || { echo "[firstboot] TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
+      [[ "${PRESALES_TELEGRAM_BOT_TOKEN:-}" != "replace_presales_bot_token" ]] || { echo "[firstboot] PRESALES_TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
+      [[ "${GEMINI_API_KEY:-}" != "replace_gemini_key" ]] || { echo "[firstboot] GEMINI_API_KEY placeholder not replaced"; exit 1; }
+      if [[ "${ANTHROPIC_API_KEY:-}" == "replace_me" ]] && [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -z "${XAI_API_KEY:-}" ]]; then
+        echo "[firstboot] Set ANTHROPIC_API_KEY or OPENAI_API_KEY or XAI_API_KEY"
+        exit 1
+      fi
+
+      APP_ROOT="/opt/openclaw"
+      APP_DIR="$APP_ROOT/claw-screener"
+      mkdir -p "$APP_ROOT"
+
+      if [[ ! -d "$APP_DIR/.git" ]]; then
+        echo "[firstboot] Cloning repository..."
+        git clone --branch "${OPENCLAW_REPO_BRANCH:-main}" "$OPENCLAW_REPO_URL" "$APP_DIR"
+      else
+        echo "[firstboot] Repository already exists; pulling latest..."
+        git -C "$APP_DIR" fetch --all --prune
+        git -C "$APP_DIR" checkout "${OPENCLAW_REPO_BRANCH:-main}"
+        git -C "$APP_DIR" pull --ff-only origin "${OPENCLAW_REPO_BRANCH:-main}"
+      fi
+
+      cat > "$APP_DIR/.env" <<EOF
+      ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      XAI_API_KEY=${XAI_API_KEY:-}
+
+      OPENCLAW_PROVIDER=${OPENCLAW_PROVIDER:-anthropic}
+      OPENCLAW_MODEL=${OPENCLAW_MODEL:-claude-opus-4-6}
+      OPENCLAW_HOST=0.0.0.0
+      OPENCLAW_PORT=${OPENCLAW_PORT:-18789}
+      OPENCLAW_TIMEOUT_SECONDS=${OPENCLAW_TIMEOUT_SECONDS:-180}
+
+      GEMINI_API_KEY=${GEMINI_API_KEY:-}
+
+      TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      PRESALES_TELEGRAM_BOT_TOKEN=${PRESALES_TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-pairing}
+      EOF
+      chmod 600 "$APP_DIR/.env"
+
+      echo "[firstboot] Running bootstrap.sh..."
+      cd "$APP_DIR"
+      chmod +x bootstrap.sh
+      ./bootstrap.sh
+
+      echo "[firstboot] Complete."
+
+runcmd:
+  - [bash, -lc, "/usr/local/bin/openclaw-firstboot.sh"]
+
+final_message: |
+  cloud-init completed.
+  Check provisioning logs:
+    - /var/log/cloud-init-output.log
+    - /var/log/openclaw-firstboot.log

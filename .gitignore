@@ -12,3 +12,6 @@ __pycache__/
 
 dist/
 node_modules/
+
+# Docker / secrets
+.env
