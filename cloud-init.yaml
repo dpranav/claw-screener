@@ -1,6 +1,6 @@
 #cloud-config
 #
-# Azure VM first-boot provisioning for OpenClaw + dual Telegram agents + ClawMetry.
+# Azure VM first-boot provisioning for full OpenClaw stack (5 agents + ClawMetry).
 # Usage:
 #   az vm create ... --custom-data cloud-init.yaml
 #
@@ -29,9 +29,12 @@ write_files:
       # OPENAI_API_KEY=
       # XAI_API_KEY=
 
-      # Telegram routing
+      # Telegram bot tokens (all required for full setup)
       TELEGRAM_BOT_TOKEN=replace_main_bot_token
       PRESALES_TELEGRAM_BOT_TOKEN=replace_presales_bot_token
+      SPRINTPLANNER_TELEGRAM_BOT_TOKEN=replace_sprintplanner_bot_token
+      SPENDCUBE_TELEGRAM_BOT_TOKEN=replace_spendcube_bot_token
+      PROCESSMAP_TELEGRAM_BOT_TOKEN=replace_processmap_bot_token
 
       # Skill API keys
       GEMINI_API_KEY=replace_gemini_key
@@ -40,7 +43,8 @@ write_files:
       OPENCLAW_PROVIDER=anthropic
       OPENCLAW_MODEL=claude-opus-4-6
       OPENCLAW_PORT=18789
-      TELEGRAM_DM_POLICY=pairing
+      TELEGRAM_DM_POLICY=allowlist
+      TELEGRAM_ALLOWED_IDS=5215560516
       OPENCLAW_TIMEOUT_SECONDS=180
 
   - path: /usr/local/bin/openclaw-firstboot.sh
@@ -62,6 +66,9 @@ write_files:
       [[ "${OPENCLAW_REPO_URL:-}" != "" ]] || { echo "[firstboot] OPENCLAW_REPO_URL is required"; exit 1; }
       [[ "${TELEGRAM_BOT_TOKEN:-}" != "replace_main_bot_token" ]] || { echo "[firstboot] TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
       [[ "${PRESALES_TELEGRAM_BOT_TOKEN:-}" != "replace_presales_bot_token" ]] || { echo "[firstboot] PRESALES_TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
+      [[ "${SPRINTPLANNER_TELEGRAM_BOT_TOKEN:-}" != "replace_sprintplanner_bot_token" ]] || { echo "[firstboot] SPRINTPLANNER_TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
+      [[ "${SPENDCUBE_TELEGRAM_BOT_TOKEN:-}" != "replace_spendcube_bot_token" ]] || { echo "[firstboot] SPENDCUBE_TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
+      [[ "${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}" != "replace_processmap_bot_token" ]] || { echo "[firstboot] PROCESSMAP_TELEGRAM_BOT_TOKEN placeholder not replaced"; exit 1; }
       [[ "${GEMINI_API_KEY:-}" != "replace_gemini_key" ]] || { echo "[firstboot] GEMINI_API_KEY placeholder not replaced"; exit 1; }
       if [[ "${ANTHROPIC_API_KEY:-}" == "replace_me" ]] && [[ -z "${OPENAI_API_KEY:-}" ]] && [[ -z "${XAI_API_KEY:-}" ]]; then
         echo "[firstboot] Set ANTHROPIC_API_KEY or OPENAI_API_KEY or XAI_API_KEY"
@@ -97,7 +104,11 @@ write_files:
 
       TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       PRESALES_TELEGRAM_BOT_TOKEN=${PRESALES_TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-pairing}
+      SPRINTPLANNER_TELEGRAM_BOT_TOKEN=${SPRINTPLANNER_TELEGRAM_BOT_TOKEN:-}
+      SPENDCUBE_TELEGRAM_BOT_TOKEN=${SPENDCUBE_TELEGRAM_BOT_TOKEN:-}
+      PROCESSMAP_TELEGRAM_BOT_TOKEN=${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-allowlist}
+      TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED_IDS:-}
       EOF
       chmod 600 "$APP_DIR/.env"
 

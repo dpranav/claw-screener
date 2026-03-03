@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap OpenClaw + dual Telegram agents + skills + ClawMetry
-# Intended for Ubuntu VMs (e.g., Azure). Run from repository root.
+# Full bootstrap for this repository's OpenClaw setup:
+# - 5 isolated agents
+# - ClawHub + local skills
+# - Telegram account routing
+# - ClawMetry startup
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 CONTAINER_NAME="${CONTAINER_NAME:-openclaw-screener}"
-PRESALES_ACCOUNT_ID="${PRESALES_ACCOUNT_ID:-presales}"
-PRESALES_AGENT_NAME="${PRESALES_AGENT_NAME:-Pre Sales Specialist}"
-PRESALES_AGENT_ID="${PRESALES_AGENT_ID:-pre-sales-specialist}"
-MAIN_ACCOUNT_ID="${MAIN_ACCOUNT_ID:-default}"
-MAIN_AGENT_ID="${MAIN_AGENT_ID:-main}"
 OPENCLAW_TIMEOUT_SECONDS="${OPENCLAW_TIMEOUT_SECONDS:-180}"
+
+MAIN_ACCOUNT_ID="${MAIN_ACCOUNT_ID:-default}"
+PRESALES_ACCOUNT_ID="${PRESALES_ACCOUNT_ID:-presales}"
+SPRINTPLANNER_ACCOUNT_ID="${SPRINTPLANNER_ACCOUNT_ID:-sprintplanner}"
+SPENDCUBE_ACCOUNT_ID="${SPENDCUBE_ACCOUNT_ID:-spendcube}"
+PROCESSMAP_ACCOUNT_ID="${PROCESSMAP_ACCOUNT_ID:-processmap}"
 
 log() { printf "\n[bootstrap] %s\n" "$*"; }
 warn() { printf "\n[bootstrap][warn] %s\n" "$*" >&2; }
@@ -29,27 +33,18 @@ ensure_docker() {
     log "Docker already installed."
     return
   fi
-
   log "Installing Docker..."
   curl -fsSL https://get.docker.com | sh
-
-  # shellcheck disable=SC2015
   command -v sudo >/dev/null 2>&1 && sudo usermod -aG docker "$USER" || true
-
-  warn "Docker installed. If docker commands fail due to permissions, re-login and re-run this script."
+  warn "Docker installed. Re-login if docker permissions fail."
 }
 
 ensure_compose() {
-  if docker compose version >/dev/null 2>&1; then
-    log "Docker Compose plugin available."
-    return
-  fi
-  die "Docker Compose plugin is not available. Install Docker Compose v2."
+  docker compose version >/dev/null 2>&1 || die "Docker Compose plugin missing."
 }
 
 load_env_file() {
-  [[ -f .env ]] || die ".env not found in $PROJECT_DIR. Create it first."
-  # Export .env for this script so we can validate required variables.
+  [[ -f .env ]] || die ".env not found in $PROJECT_DIR"
   set -a
   # shellcheck disable=SC1091
   source .env
@@ -58,26 +53,17 @@ load_env_file() {
 
 validate_required_env() {
   local missing=()
+  [[ -n "${ANTHROPIC_API_KEY:-}" || -n "${OPENAI_API_KEY:-}" || -n "${XAI_API_KEY:-}" ]] || missing+=("one LLM key")
+  [[ -n "${GEMINI_API_KEY:-}" ]] || missing+=("GEMINI_API_KEY")
+  [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("TELEGRAM_BOT_TOKEN")
+  [[ -n "${PRESALES_TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("PRESALES_TELEGRAM_BOT_TOKEN")
+  [[ -n "${SPRINTPLANNER_TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("SPRINTPLANNER_TELEGRAM_BOT_TOKEN")
+  [[ -n "${SPENDCUBE_TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("SPENDCUBE_TELEGRAM_BOT_TOKEN")
+  [[ -n "${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("PROCESSMAP_TELEGRAM_BOT_TOKEN")
 
-  [[ -n "${ANTHROPIC_API_KEY:-}" || -n "${OPENAI_API_KEY:-}" || -n "${XAI_API_KEY:-}" ]] || \
-    missing+=("One LLM key: ANTHROPIC_API_KEY or OPENAI_API_KEY or XAI_API_KEY")
-  [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("TELEGRAM_BOT_TOKEN (main bot)")
-  [[ -n "${PRESALES_TELEGRAM_BOT_TOKEN:-}" ]] || missing+=("PRESALES_TELEGRAM_BOT_TOKEN (pre-sales bot)")
-  [[ -n "${GEMINI_API_KEY:-}" ]] || missing+=("GEMINI_API_KEY (for nano-banana-pro)")
-
-  if ((${#missing[@]} > 0)); then
-    printf "\n[bootstrap][error] Missing required values in .env:\n" >&2
-    for item in "${missing[@]}"; do
-      printf "  - %s\n" "$item" >&2
-    done
-    cat <<'EOF' >&2
-
-Add these to .env, then re-run:
-  TELEGRAM_BOT_TOKEN=...
-  PRESALES_TELEGRAM_BOT_TOKEN=...
-  GEMINI_API_KEY=...
-  ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY / XAI_API_KEY
-EOF
+  if ((${#missing[@]})); then
+    printf "\n[bootstrap][error] Missing required .env values:\n" >&2
+    for m in "${missing[@]}"; do printf "  - %s\n" "$m" >&2; done
     exit 1
   fi
 }
@@ -89,9 +75,7 @@ compose_up() {
 
 wait_for_gateway() {
   log "Waiting for OpenClaw gateway..."
-  local attempts=40
-  local i
-  for ((i=1; i<=attempts; i++)); do
+  for _ in $(seq 1 40); do
     if curl -sSf "http://localhost:${OPENCLAW_PORT:-18789}/" >/dev/null 2>&1; then
       log "Gateway is up."
       return
@@ -105,138 +89,103 @@ oc() {
   docker exec "$CONTAINER_NAME" openclaw "$@"
 }
 
+ensure_agent() {
+  local name="$1" workspace="$2"
+  local id
+  id="$(printf "%s" "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//')"
+  if oc agents list --json | grep -q "\"id\": \"${id}\""; then
+    log "Agent ${id} already exists."
+  else
+    oc agents add "$name" --workspace "$workspace" --non-interactive >/dev/null
+  fi
+}
+
+configure_agents_workspace_files() {
+  log "Writing workspace instructions for all custom agents..."
+  docker exec "$CONTAINER_NAME" python3 -c "from pathlib import Path
+def w(p,s): Path(p).parent.mkdir(parents=True, exist_ok=True); Path(p).write_text(s, encoding='utf-8')
+w('/root/.openclaw/workspace-pre-sales/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Pre Sales Specialist\n- **Creature:** Proposal-focused AI consultant\n- **Vibe:** Structured, concise, business-friendly\n- **Emoji:** 📊\n')
+w('/root/.openclaw/workspace-pre-sales/AGENTS.md', '# AGENTS.md - Pre Sales Specialist\n\nCreate client-facing presentations, charters, and SOWs with clear assumptions, milestones, scope, and risks.\n')
+w('/root/.openclaw/workspace-sprint-planner/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Sprint Planner\n- **Creature:** Agile delivery strategist\n- **Vibe:** Structured, practical, outcome-focused\n- **Emoji:** 🧭\n')
+w('/root/.openclaw/workspace-sprint-planner/AGENTS.md', '# AGENTS.md - Sprint Planner\n\nTurn charters into Themes, Epics, User Stories, sprint plans, and team-structure recommendations.\n')
+w('/root/.openclaw/workspace-spend-cube/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Spend Cube Agent\n- **Creature:** Procurement analytics specialist\n- **Vibe:** Analytical, precise, audit-friendly\n- **Emoji:** 📦\n')
+w('/root/.openclaw/workspace-spend-cube/AGENTS.md', '# AGENTS.md - Spend Cube Agent\n\nUse SAP spend cube analysis to process raw SAP tables and produce PPTX, DOCX, and CSV outputs.\n')
+w('/root/.openclaw/workspace-process-mapping/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Process Mapping Agent\n- **Creature:** Business process analyst\n- **Vibe:** Structured, facilitative, detail-conscious\n- **Emoji:** 🗺️\n')
+w('/root/.openclaw/workspace-process-mapping/AGENTS.md', '# AGENTS.md - Process Mapping Agent\n\nTurn stakeholder interviews into AS-IS and TO-BE process maps using Excalidraw-oriented workflows.\n')
+"
+  oc agents set-identity --agent pre-sales-specialist --name "Pre Sales Specialist" --theme "Structured, concise, business-friendly" --emoji "📊" >/dev/null
+  oc agents set-identity --agent sprint-planner --name "Sprint Planner" --theme "Structured, practical, outcome-focused" --emoji "🧭" >/dev/null
+  oc agents set-identity --agent spend-cube-agent --name "Spend Cube Agent" --theme "Analytical, precise, audit-friendly" --emoji "📦" >/dev/null
+  oc agents set-identity --agent process-mapping-agent --name "Process Mapping Agent" --theme "Structured, facilitative, detail-conscious" --emoji "🗺️" >/dev/null
+}
+
+install_skills() {
+  log "Installing skills..."
+  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install powerpoint-pptx >/dev/null
+  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install office-document-specialist-suite >/dev/null
+  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install thought-to-excalidraw >/dev/null
+  if [[ -d "$PROJECT_DIR/SAP_SpendCube_Skill" ]]; then
+    docker cp "$PROJECT_DIR/SAP_SpendCube_Skill" "$CONTAINER_NAME:/root/.openclaw/skills/sap-spendcube-analysis"
+  else
+    warn "SAP_SpendCube_Skill directory not found; sap-spendcube-analysis local copy skipped."
+  fi
+}
+
 configure_timeouts() {
   log "Setting agent timeout (${OPENCLAW_TIMEOUT_SECONDS}s)..."
   oc config set agents.defaults.timeoutSeconds "$OPENCLAW_TIMEOUT_SECONDS" --strict-json >/dev/null
 }
 
-install_skills() {
-  log "Installing managed skills from ClawHub..."
-  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install powerpoint-pptx >/dev/null
-  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install office-document-specialist-suite >/dev/null
-}
-
-ensure_presales_agent() {
-  log "Ensuring isolated pre-sales agent exists..."
-  if oc agents list --json | grep -q "\"id\": \"${PRESALES_AGENT_ID}\""; then
-    log "Agent ${PRESALES_AGENT_ID} already exists."
-  else
-    oc agents add "$PRESALES_AGENT_NAME" \
-      --workspace "/root/.openclaw/workspace-pre-sales" \
-      --non-interactive >/dev/null
-  fi
-}
-
-configure_agent_identity_and_prompt() {
-  log "Applying pre-sales workspace instructions..."
-  docker exec "$CONTAINER_NAME" python3 - <<'PY'
-from pathlib import Path
-
-identity = Path("/root/.openclaw/workspace-pre-sales/IDENTITY.md")
-identity.write_text(
-    """# IDENTITY.md
-
-- **Name:** Pre Sales Specialist
-- **Creature:** Proposal-focused AI consultant
-- **Vibe:** Structured, concise, business-friendly
-- **Emoji:** 📊
-
-## Role
-You are a pre-sales expert who turns requirements into client-ready materials: presentations, project charters, and statements of work (SOW).
-""",
-    encoding="utf-8",
-)
-
-agents = Path("/root/.openclaw/workspace-pre-sales/AGENTS.md")
-agents.write_text(
-    """# AGENTS.md - Pre Sales Specialist
-
-## Mission
-Create client-facing pre-sales deliverables from user instructions:
-- Presentation decks
-- Project charters
-- Statements of Work (SOW)
-
-## Operating Style
-- Clarify objective, audience, timeline, scope, and assumptions first.
-- Produce outlines before full deliverables for broad requests.
-- Keep language executive-friendly and concrete.
-- Surface assumptions and risks explicitly.
-
-## Preferred Skills
-Use these skills first whenever relevant:
-1. `PowerPoint PPTX` (slug: `powerpoint-pptx`)
-2. `office-document-specialist-suite`
-3. `nano-banana-pro`
-
-## Deliverable Standards
-### Presentations
-- Include: title slide, problem, goals, approach, timeline, scope, deliverables, commercials (if provided), next steps.
-
-### Project Charter
-- Include: purpose, objectives, scope in/out, stakeholders, milestones, governance, risks, assumptions, success criteria.
-
-### SOW
-- Include: background, scope, deliverables, acceptance criteria, timeline, dependencies, roles/responsibilities, change control, commercial terms placeholders.
-""",
-    encoding="utf-8",
-)
-PY
-
-  oc agents set-identity \
-    --agent "$PRESALES_AGENT_ID" \
-    --name "Pre Sales Specialist" \
-    --theme "Structured, concise, business-friendly" \
-    --emoji "📊" >/dev/null
-}
-
 configure_telegram_accounts_and_routing() {
   log "Configuring Telegram accounts..."
+  oc channels add --channel telegram --account "$MAIN_ACCOUNT_ID" --name "Main Bot" --token "$TELEGRAM_BOT_TOKEN" >/dev/null
+  oc channels add --channel telegram --account "$PRESALES_ACCOUNT_ID" --name "Pre Sales Specialist Bot" --token "$PRESALES_TELEGRAM_BOT_TOKEN" >/dev/null
+  oc channels add --channel telegram --account "$SPRINTPLANNER_ACCOUNT_ID" --name "Sprint Planner Bot" --token "$SPRINTPLANNER_TELEGRAM_BOT_TOKEN" >/dev/null
+  oc channels add --channel telegram --account "$SPENDCUBE_ACCOUNT_ID" --name "Spend Cube Bot" --token "$SPENDCUBE_TELEGRAM_BOT_TOKEN" >/dev/null
+  oc channels add --channel telegram --account "$PROCESSMAP_ACCOUNT_ID" --name "Process Mapping Bot" --token "$PROCESSMAP_TELEGRAM_BOT_TOKEN" >/dev/null
 
-  oc channels add \
-    --channel telegram \
-    --account "$MAIN_ACCOUNT_ID" \
-    --name "Main Bot" \
-    --token "$TELEGRAM_BOT_TOKEN" >/dev/null
-
-  oc channels add \
-    --channel telegram \
-    --account "$PRESALES_ACCOUNT_ID" \
-    --name "Pre Sales Specialist Bot" \
-    --token "$PRESALES_TELEGRAM_BOT_TOKEN" >/dev/null
+  if [[ -n "${TELEGRAM_ALLOWED_IDS:-}" ]]; then
+    local allow_json ids
+    ids="$(printf "%s" "$TELEGRAM_ALLOWED_IDS" | awk -F',' '{for(i=1;i<=NF;i++){gsub(/^ +| +$/,"",$i); if(length($i)>0) printf "\"tg:%s\"%s",$i,(i<NF?",":"")}}')"
+    allow_json="[${ids}]"
+    oc config set channels.telegram.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.default.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.presales.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.sprintplanner.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.spendcube.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.processmap.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.default.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.presales.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.sprintplanner.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.spendcube.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.processmap.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+  fi
 
   log "Configuring account-to-agent bindings..."
   oc config set bindings \
-    "[{agentId:'${MAIN_AGENT_ID}',match:{channel:'telegram',accountId:'${MAIN_ACCOUNT_ID}'}},{agentId:'${PRESALES_AGENT_ID}',match:{channel:'telegram',accountId:'${PRESALES_ACCOUNT_ID}'}}]" \
+    "[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}}]" \
     --strict-json >/dev/null
 }
 
 restart_openclaw() {
-  log "Restarting OpenClaw container to apply settings..."
+  log "Restarting OpenClaw container..."
   docker compose -f "$COMPOSE_FILE" restart
-  sleep 8
+  sleep 10
 }
 
 start_clawmetry() {
   log "Starting ClawMetry on port 8900..."
-  # Start detached from exec session; safe to re-run.
   docker exec "$CONTAINER_NAME" pkill -f "^clawmetry .*--port 8900" >/dev/null 2>&1 || true
-  docker exec -d "$CONTAINER_NAME" clawmetry \
-    --host 0.0.0.0 \
-    --port 8900 \
-    --data-dir /root/.openclaw \
-    --no-debug >/dev/null 2>&1 || true
+  docker exec -d "$CONTAINER_NAME" clawmetry --host 0.0.0.0 --port 8900 --data-dir /root/.openclaw --no-debug >/dev/null 2>&1 || true
 }
 
 verify() {
-  log "Verifying channels and bindings..."
+  log "Verifying channels, agents, and endpoints..."
   oc channels status --probe || true
   oc agents list --bindings || true
-  oc skills check | sed -n '1,80p' || true
-
-  log "Health endpoints:"
-  curl -s -o /dev/null -w "  OpenClaw: HTTP %{http_code}\n" "http://localhost:${OPENCLAW_PORT:-18789}/" || true
-  curl -s -o /dev/null -w "  ClawMetry: HTTP %{http_code}\n" "http://localhost:8900/" || true
+  oc skills check | sed -n '1,120p' || true
+  curl -s -o /dev/null -w "OpenClaw HTTP %{http_code}\n" "http://localhost:${OPENCLAW_PORT:-18789}/" || true
+  curl -s -o /dev/null -w "ClawMetry HTTP %{http_code}\n" "http://localhost:8900/" || true
 }
 
 summary() {
@@ -244,18 +193,15 @@ summary() {
 
 [bootstrap] Completed.
 
-OpenClaw UI:
-  http://<VM_IP>:${OPENCLAW_PORT:-18789}
+OpenClaw:   http://<VM_IP>:${OPENCLAW_PORT:-18789}
+ClawMetry:  http://<VM_IP>:8900
 
-ClawMetry UI:
-  http://<VM_IP>:8900
-
-Telegram routing:
-  accountId=${MAIN_ACCOUNT_ID}     -> agent=${MAIN_AGENT_ID}
-  accountId=${PRESALES_ACCOUNT_ID} -> agent=${PRESALES_AGENT_ID}
-
-Next recommended step:
-  Restrict public access with NSG/firewall and use SSH tunnel or reverse proxy + TLS.
+Telegram routes:
+  default       -> main
+  presales      -> pre-sales-specialist
+  sprintplanner -> sprint-planner
+  spendcube     -> spend-cube-agent
+  processmap    -> process-mapping-agent
 EOF
 }
 
@@ -270,8 +216,11 @@ main() {
   wait_for_gateway
   configure_timeouts
   install_skills
-  ensure_presales_agent
-  configure_agent_identity_and_prompt
+  ensure_agent "Pre Sales Specialist" "/root/.openclaw/workspace-pre-sales"
+  ensure_agent "Sprint Planner" "/root/.openclaw/workspace-sprint-planner"
+  ensure_agent "Spend Cube Agent" "/root/.openclaw/workspace-spend-cube"
+  ensure_agent "Process Mapping Agent" "/root/.openclaw/workspace-process-mapping"
+  configure_agents_workspace_files
   configure_telegram_accounts_and_routing
   restart_openclaw
   start_clawmetry
