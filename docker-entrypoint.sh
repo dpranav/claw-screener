@@ -107,7 +107,7 @@ print(json.dumps(payload, separators=(",", ":")))
 PY
 )
 
-    ACCOUNT_IDS="${TELEGRAM_ACCOUNT_IDS:-default,presales,sprintplanner,spendcube,processmap}"
+    ACCOUNT_IDS="${TELEGRAM_ACCOUNT_IDS:-default,presales,sprintplanner,spendcube,processmap,salescoach,stravygtm}"
     IFS=',' read -ra ACCOUNTS <<< "$ACCOUNT_IDS"
     for ACCOUNT_ID in "${ACCOUNTS[@]}"; do
       ACCOUNT_ID=$(echo "$ACCOUNT_ID" | xargs)

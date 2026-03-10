@@ -14,6 +14,8 @@ COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 CONTAINER_NAME="${CONTAINER_NAME:-openclaw-screener}"
 OPENCLAW_TIMEOUT_SECONDS="${OPENCLAW_TIMEOUT_SECONDS:-180}"
 INSTALL_AGENT_BROWSER_SKILL="${INSTALL_AGENT_BROWSER_SKILL:-true}"
+INSTALL_GOOSE_GTM_SKILLS="${INSTALL_GOOSE_GTM_SKILLS:-true}"
+GOOSE_SKILLS_REPO_URL="${GOOSE_SKILLS_REPO_URL:-https://github.com/dpranav/goose-skills.git}"
 
 MAIN_ACCOUNT_ID="${MAIN_ACCOUNT_ID:-default}"
 PRESALES_ACCOUNT_ID="${PRESALES_ACCOUNT_ID:-presales}"
@@ -21,6 +23,7 @@ SPRINTPLANNER_ACCOUNT_ID="${SPRINTPLANNER_ACCOUNT_ID:-sprintplanner}"
 SPENDCUBE_ACCOUNT_ID="${SPENDCUBE_ACCOUNT_ID:-spendcube}"
 PROCESSMAP_ACCOUNT_ID="${PROCESSMAP_ACCOUNT_ID:-processmap}"
 SALESCOACH_ACCOUNT_ID="${SALESCOACH_ACCOUNT_ID:-salescoach}"
+STRAVY_GTM_ACCOUNT_ID="${STRAVY_GTM_ACCOUNT_ID:-stravygtm}"
 
 log() { printf "\n[bootstrap] %s\n" "$*"; }
 warn() { printf "\n[bootstrap][warn] %s\n" "$*" >&2; }
@@ -336,12 +339,72 @@ If new industry patterns, stakeholder dynamics, or architecture standards emerge
 Treat this as a living engagement operating system.
 """,
 )
+w(
+    "/root/.openclaw/workspace-stravy-gtm/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** Stravy GTM Agent\n"
+    "- **Creature:** GTM intelligence and execution strategist\n"
+    "- **Vibe:** Commercially sharp, evidence-driven, execution-oriented\n"
+    "- **Emoji:** 🚀\n",
+)
+w(
+    "/root/.openclaw/workspace-stravy-gtm/AGENTS.md",
+    """# AGENTS.md - Stravy GTM Agent
+
+You are Stravy GTM Agent.
+
+Mission:
+- Use installed Goose GTM capability skills for research, lead generation, ICP analysis, messaging, and competitive intelligence.
+- Prioritize speed, evidence, and execution-ready outputs.
+- Convert research into concrete actions that can be run by a founder/RevOps/GTM team immediately.
+
+Default response format:
+1) Objective
+2) Key findings (with confidence level)
+3) Recommended actions (ranked by impact x effort)
+4) 7-day execution checklist
+5) Risks, assumptions, and data gaps
+
+Starter prompts:
+
+1) ICP and positioning audit
+\"Run an ICP audit for [company/product]. Build 3 ICP segments, pain points, buying triggers, objections, and messaging angles. End with a 30-day GTM action plan.\"
+
+2) Competitor intelligence snapshot
+\"Create a competitor brief for [competitor list]. Compare positioning, proof points, channels, offer structure, and likely weaknesses. Suggest attack angles for Stravy.\"
+
+3) Outbound account research pack
+\"For these target accounts [list], generate account-level hypotheses, likely stakeholders, value props, and first-touch personalization hooks.\"
+
+4) Weekly GTM signal monitor
+\"Scan for GTM signals in [industry/topic]: hiring intent, product launches, funding events, negative reviews, and leadership changes. Return opportunities we should act on this week.\"
+
+5) Demand-gen content plan
+\"Build a 4-week content plan for [ICP] focused on [problem]. Include themes, post drafts, CTA, and distribution channels.\"
+
+6) Website/landing page conversion review
+\"Audit this website [url] for messaging clarity, ICP alignment, credibility proof, and conversion friction. Recommend top 10 fixes by expected impact.\"
+
+7) Lead enrichment and qualification
+\"Given this lead list [data], score lead quality, infer intent signals, and recommend next best action per lead.\"
+
+8) Sales call prep brief
+\"Prepare a call brief for [company/contact]: likely pains, strategic priorities, discovery questions, objection handling, and meeting objective.\"
+
+9) Win/loss pattern extraction
+\"Analyze these notes/transcripts [data] and extract win/loss drivers, objection patterns, and qualification mistakes. Suggest process fixes.\"
+
+10) CEO weekly GTM brief
+\"Generate an executive GTM brief: pipeline risks, top growth bets, channel performance hypotheses, and decisions needed this week.\"
+""",
+)
 PY
   oc agents set-identity --agent pre-sales-specialist --name "Pre Sales Specialist" --theme "Structured, concise, business-friendly" --emoji "📊" >/dev/null
   oc agents set-identity --agent sprint-planner --name "Sprint Planner" --theme "Structured, practical, outcome-focused" --emoji "🧭" >/dev/null
   oc agents set-identity --agent spend-cube-agent --name "Spend Cube Agent" --theme "Analytical, precise, audit-friendly" --emoji "📦" >/dev/null
   oc agents set-identity --agent process-mapping-agent --name "Process Mapping Agent" --theme "Structured, facilitative, detail-conscious" --emoji "🗺️" >/dev/null
   oc agents set-identity --agent ai-sales-coach --name "AI Sales Coach" --theme "Disciplined, strategic, commercially sharp" --emoji "🎯" >/dev/null
+  oc agents set-identity --agent stravy-gtm-agent --name "Stravy GTM Agent" --theme "Commercially sharp, evidence-driven, execution-oriented" --emoji "🚀" >/dev/null
 }
 
 install_skills() {
@@ -361,6 +424,35 @@ install_skills() {
     fi
   else
     warn "Skipping agent-browser install (INSTALL_AGENT_BROWSER_SKILL=${INSTALL_AGENT_BROWSER_SKILL})."
+  fi
+  if [[ "${INSTALL_GOOSE_GTM_SKILLS,,}" == "true" ]]; then
+    log "Installing Goose GTM capabilities from ${GOOSE_SKILLS_REPO_URL}..."
+    if ! docker exec "$CONTAINER_NAME" bash -lc "set -euo pipefail; tmp=\$(mktemp -d); trap 'rm -rf \"\$tmp\"' EXIT; git clone --depth 1 \"$GOOSE_SKILLS_REPO_URL\" \"\$tmp/repo\" >/dev/null 2>&1; python3 - \"\$tmp/repo/skills/capabilities\" <<'PY'
+import shutil
+import sys
+from pathlib import Path
+
+src_root = Path(sys.argv[1])
+dst_root = Path('/root/.openclaw/skills')
+copied = 0
+if not src_root.exists():
+    raise SystemExit('goose capabilities path missing')
+for skill_dir in sorted(src_root.iterdir()):
+    if not skill_dir.is_dir():
+        continue
+    if not (skill_dir / 'SKILL.md').exists():
+        continue
+    target = dst_root / skill_dir.name
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(skill_dir, target)
+    copied += 1
+print(f'copied_goose_skills={copied}')
+PY"; then
+      warn "Failed to install/update Goose GTM skills (continuing)."
+    fi
+  else
+    warn "Skipping Goose GTM skills (INSTALL_GOOSE_GTM_SKILLS=${INSTALL_GOOSE_GTM_SKILLS})."
   fi
   if [[ -d "$PROJECT_DIR/SAP_SpendCube_Skill" ]]; then
     docker cp "$PROJECT_DIR/SAP_SpendCube_Skill" "$CONTAINER_NAME:/root/.openclaw/skills/sap-spendcube-analysis"
@@ -384,6 +476,9 @@ configure_telegram_accounts_and_routing() {
   if [[ -n "${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}" ]]; then
     oc channels add --channel telegram --account "$SALESCOACH_ACCOUNT_ID" --name "AI Sales Coach Bot" --token "$AI_SALES_COACH_TELEGRAM_BOT_TOKEN" >/dev/null
   fi
+  if [[ -n "${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    oc channels add --channel telegram --account "$STRAVY_GTM_ACCOUNT_ID" --name "Stravy GTM Agent Bot" --token "$STRAVY_GTM_TELEGRAM_BOT_TOKEN" >/dev/null
+  fi
 
   if [[ -n "${TELEGRAM_ALLOWED_IDS:-}" ]]; then
     local allow_json ids
@@ -396,12 +491,14 @@ configure_telegram_accounts_and_routing() {
     oc config set channels.telegram.accounts.spendcube.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.processmap.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.salescoach.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.stravygtm.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.default.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.presales.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.sprintplanner.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.spendcube.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.processmap.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.salescoach.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.stravygtm.dmPolicy '"allowlist"' --strict-json >/dev/null || true
   fi
 
   log "Configuring account-to-agent bindings..."
@@ -409,6 +506,9 @@ configure_telegram_accounts_and_routing() {
   bindings="[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}}]"
   if [[ -n "${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}" ]]; then
     bindings="[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}},{agentId:'ai-sales-coach',match:{channel:'telegram',accountId:'salescoach'}}]"
+  fi
+  if [[ -n "${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    bindings="${bindings%]},{agentId:'stravy-gtm-agent',match:{channel:'telegram',accountId:'stravygtm'}}]"
   fi
   oc config set bindings "$bindings" --strict-json >/dev/null
 }
@@ -449,6 +549,7 @@ Telegram routes:
   spendcube     -> spend-cube-agent
   processmap    -> process-mapping-agent
   salescoach    -> ai-sales-coach (if AI_SALES_COACH_TELEGRAM_BOT_TOKEN is set)
+  stravygtm     -> stravy-gtm-agent (if STRAVY_GTM_TELEGRAM_BOT_TOKEN is set)
 EOF
 }
 
@@ -468,6 +569,7 @@ main() {
   ensure_agent "Spend Cube Agent" "/root/.openclaw/workspace-spend-cube"
   ensure_agent "Process Mapping Agent" "/root/.openclaw/workspace-process-mapping"
   ensure_agent "AI Sales Coach" "/root/.openclaw/workspace-ai-sales-coach"
+  ensure_agent "Stravy GTM Agent" "/root/.openclaw/workspace-stravy-gtm"
   configure_agents_workspace_files
   configure_telegram_accounts_and_routing
   restart_openclaw

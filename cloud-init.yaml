@@ -37,10 +37,14 @@ write_files:
       PROCESSMAP_TELEGRAM_BOT_TOKEN=replace_processmap_bot_token
       # Optional dedicated AI Sales Coach bot token
       # AI_SALES_COACH_TELEGRAM_BOT_TOKEN=replace_salescoach_bot_token
+      # Optional dedicated Stravy GTM bot token
+      # STRAVY_GTM_TELEGRAM_BOT_TOKEN=replace_stravy_gtm_bot_token
 
       # Skill API keys
       GEMINI_API_KEY=replace_gemini_key
       INSTALL_AGENT_BROWSER_SKILL=true
+      INSTALL_GOOSE_GTM_SKILLS=true
+      GOOSE_SKILLS_REPO_URL=https://github.com/dpranav/goose-skills.git
 
       # Optional OpenClaw settings
       OPENCLAW_PROVIDER=anthropic
@@ -105,6 +109,8 @@ write_files:
 
       GEMINI_API_KEY=${GEMINI_API_KEY:-}
       INSTALL_AGENT_BROWSER_SKILL=${INSTALL_AGENT_BROWSER_SKILL:-true}
+      INSTALL_GOOSE_GTM_SKILLS=${INSTALL_GOOSE_GTM_SKILLS:-true}
+      GOOSE_SKILLS_REPO_URL=${GOOSE_SKILLS_REPO_URL:-https://github.com/dpranav/goose-skills.git}
 
       TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       PRESALES_TELEGRAM_BOT_TOKEN=${PRESALES_TELEGRAM_BOT_TOKEN:-}
@@ -112,6 +118,7 @@ write_files:
       SPENDCUBE_TELEGRAM_BOT_TOKEN=${SPENDCUBE_TELEGRAM_BOT_TOKEN:-}
       PROCESSMAP_TELEGRAM_BOT_TOKEN=${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}
       AI_SALES_COACH_TELEGRAM_BOT_TOKEN=${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}
+      STRAVY_GTM_TELEGRAM_BOT_TOKEN=${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-allowlist}
       TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED_IDS:-}
       EOF
