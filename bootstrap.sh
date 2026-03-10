@@ -346,11 +346,19 @@ PY
 
 install_skills() {
   log "Installing skills..."
-  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install powerpoint-pptx >/dev/null
-  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install office-document-specialist-suite >/dev/null
-  docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install thought-to-excalidraw >/dev/null
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install powerpoint-pptx --force >/dev/null; then
+    warn "Failed to install/update powerpoint-pptx (continuing)."
+  fi
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install office-document-specialist-suite --force >/dev/null; then
+    warn "Failed to install/update office-document-specialist-suite (continuing)."
+  fi
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install thought-to-excalidraw --force >/dev/null; then
+    warn "Failed to install/update thought-to-excalidraw (continuing)."
+  fi
   if [[ "${INSTALL_AGENT_BROWSER_SKILL,,}" == "true" ]]; then
-    docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install agent-browser --force >/dev/null
+    if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install agent-browser --force >/dev/null; then
+      warn "Failed to install/update agent-browser (continuing)."
+    fi
   else
     warn "Skipping agent-browser install (INSTALL_AGENT_BROWSER_SKILL=${INSTALL_AGENT_BROWSER_SKILL})."
   fi
