@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+is_true() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [ ! -f /root/.openclaw/openclaw.json ]; then
   echo "First run — initializing OpenClaw..."
   openclaw onboard --non-interactive --accept-risk 2>&1 || true
@@ -39,7 +46,24 @@ node -e "
 
 openclaw config set gateway.bind loopback 2>/dev/null || true
 openclaw config set gateway.port "${OPENCLAW_PORT:-18789}" 2>/dev/null || true
-openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true 2>/dev/null || true
+
+if [ -n "${OPENCLAW_ALLOWED_ORIGINS:-}" ]; then
+  IFS=',' read -ra ORIGINS <<< "${OPENCLAW_ALLOWED_ORIGINS}"
+  IDX=0
+  for ORIGIN in "${ORIGINS[@]}"; do
+    ORIGIN=$(echo "$ORIGIN" | xargs)
+    if [ -n "$ORIGIN" ]; then
+      openclaw config set "gateway.controlUi.allowedOrigins[$IDX]" "$ORIGIN" 2>/dev/null || true
+      IDX=$((IDX + 1))
+    fi
+  done
+fi
+
+if is_true "${OPENCLAW_ALLOW_HOST_HEADER_FALLBACK:-false}"; then
+  openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true 2>/dev/null || true
+else
+  openclaw config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback false 2>/dev/null || true
+fi
 
 if [ -n "$OPENCLAW_MODEL" ]; then
   openclaw models set "$OPENCLAW_MODEL" 2>/dev/null || true
@@ -65,6 +89,35 @@ if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
 
   # Set dmPolicy after allowFrom so allowlist validation can pass.
   openclaw config set channels.telegram.dmPolicy "${TELEGRAM_DM_POLICY:-pairing}" 2>/dev/null || true
+
+  if [ -n "${TELEGRAM_GROUP_IDS:-}" ]; then
+    REQUIRE_MENTION_JSON=false
+    if is_true "${TELEGRAM_GROUP_REQUIRE_MENTION:-true}"; then
+      REQUIRE_MENTION_JSON=true
+    fi
+
+    GROUPS_JSON=$(python3 - "$TELEGRAM_GROUP_IDS" "$REQUIRE_MENTION_JSON" <<'PY'
+import json
+import sys
+
+ids = [x.strip() for x in sys.argv[1].split(",") if x.strip()]
+require_mention = sys.argv[2].lower() == "true"
+payload = {gid: {"requireMention": require_mention} for gid in ids}
+print(json.dumps(payload, separators=(",", ":")))
+PY
+)
+
+    ACCOUNT_IDS="${TELEGRAM_ACCOUNT_IDS:-default,presales,sprintplanner,spendcube,processmap}"
+    IFS=',' read -ra ACCOUNTS <<< "$ACCOUNT_IDS"
+    for ACCOUNT_ID in "${ACCOUNTS[@]}"; do
+      ACCOUNT_ID=$(echo "$ACCOUNT_ID" | xargs)
+      [ -n "$ACCOUNT_ID" ] || continue
+      openclaw config set "channels.telegram.accounts.${ACCOUNT_ID}.groupPolicy" "allowlist" 2>/dev/null || true
+      openclaw config set --strict-json "channels.telegram.accounts.${ACCOUNT_ID}.groups" "$GROUPS_JSON" 2>/dev/null || true
+    done
+    echo "Telegram group allowlist configured for account(s): ${ACCOUNT_IDS}"
+  fi
+
   echo "Telegram channel configured (dmPolicy=${TELEGRAM_DM_POLICY:-pairing})"
 fi
 

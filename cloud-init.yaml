@@ -1,6 +1,6 @@
 #cloud-config
 #
-# Azure VM first-boot provisioning for full OpenClaw stack (5 agents + ClawMetry).
+# Azure VM first-boot provisioning for full OpenClaw stack (6 agents + ClawMetry).
 # Usage:
 #   az vm create ... --custom-data cloud-init.yaml
 #
@@ -35,9 +35,12 @@ write_files:
       SPRINTPLANNER_TELEGRAM_BOT_TOKEN=replace_sprintplanner_bot_token
       SPENDCUBE_TELEGRAM_BOT_TOKEN=replace_spendcube_bot_token
       PROCESSMAP_TELEGRAM_BOT_TOKEN=replace_processmap_bot_token
+      # Optional dedicated AI Sales Coach bot token
+      # AI_SALES_COACH_TELEGRAM_BOT_TOKEN=replace_salescoach_bot_token
 
       # Skill API keys
       GEMINI_API_KEY=replace_gemini_key
+      INSTALL_AGENT_BROWSER_SKILL=true
 
       # Optional OpenClaw settings
       OPENCLAW_PROVIDER=anthropic
@@ -101,12 +104,14 @@ write_files:
       OPENCLAW_TIMEOUT_SECONDS=${OPENCLAW_TIMEOUT_SECONDS:-180}
 
       GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      INSTALL_AGENT_BROWSER_SKILL=${INSTALL_AGENT_BROWSER_SKILL:-true}
 
       TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       PRESALES_TELEGRAM_BOT_TOKEN=${PRESALES_TELEGRAM_BOT_TOKEN:-}
       SPRINTPLANNER_TELEGRAM_BOT_TOKEN=${SPRINTPLANNER_TELEGRAM_BOT_TOKEN:-}
       SPENDCUBE_TELEGRAM_BOT_TOKEN=${SPENDCUBE_TELEGRAM_BOT_TOKEN:-}
       PROCESSMAP_TELEGRAM_BOT_TOKEN=${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}
+      AI_SALES_COACH_TELEGRAM_BOT_TOKEN=${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-allowlist}
       TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED_IDS:-}
       EOF

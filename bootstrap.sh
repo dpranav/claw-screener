@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Full bootstrap for this repository's OpenClaw setup:
-# - 5 isolated agents
+# - 6 isolated agents
 # - ClawHub + local skills
 # - Telegram account routing
 # - ClawMetry startup
@@ -13,12 +13,14 @@ cd "$PROJECT_DIR"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 CONTAINER_NAME="${CONTAINER_NAME:-openclaw-screener}"
 OPENCLAW_TIMEOUT_SECONDS="${OPENCLAW_TIMEOUT_SECONDS:-180}"
+INSTALL_AGENT_BROWSER_SKILL="${INSTALL_AGENT_BROWSER_SKILL:-true}"
 
 MAIN_ACCOUNT_ID="${MAIN_ACCOUNT_ID:-default}"
 PRESALES_ACCOUNT_ID="${PRESALES_ACCOUNT_ID:-presales}"
 SPRINTPLANNER_ACCOUNT_ID="${SPRINTPLANNER_ACCOUNT_ID:-sprintplanner}"
 SPENDCUBE_ACCOUNT_ID="${SPENDCUBE_ACCOUNT_ID:-spendcube}"
 PROCESSMAP_ACCOUNT_ID="${PROCESSMAP_ACCOUNT_ID:-processmap}"
+SALESCOACH_ACCOUNT_ID="${SALESCOACH_ACCOUNT_ID:-salescoach}"
 
 log() { printf "\n[bootstrap] %s\n" "$*"; }
 warn() { printf "\n[bootstrap][warn] %s\n" "$*" >&2; }
@@ -102,21 +104,244 @@ ensure_agent() {
 
 configure_agents_workspace_files() {
   log "Writing workspace instructions for all custom agents..."
-  docker exec "$CONTAINER_NAME" python3 -c "from pathlib import Path
-def w(p,s): Path(p).parent.mkdir(parents=True, exist_ok=True); Path(p).write_text(s, encoding='utf-8')
-w('/root/.openclaw/workspace-pre-sales/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Pre Sales Specialist\n- **Creature:** Proposal-focused AI consultant\n- **Vibe:** Structured, concise, business-friendly\n- **Emoji:** 📊\n')
-w('/root/.openclaw/workspace-pre-sales/AGENTS.md', '# AGENTS.md - Pre Sales Specialist\n\nCreate client-facing presentations, charters, and SOWs with clear assumptions, milestones, scope, and risks.\n')
-w('/root/.openclaw/workspace-sprint-planner/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Sprint Planner\n- **Creature:** Agile delivery strategist\n- **Vibe:** Structured, practical, outcome-focused\n- **Emoji:** 🧭\n')
-w('/root/.openclaw/workspace-sprint-planner/AGENTS.md', '# AGENTS.md - Sprint Planner\n\nTurn charters into Themes, Epics, User Stories, sprint plans, and team-structure recommendations.\n')
-w('/root/.openclaw/workspace-spend-cube/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Spend Cube Agent\n- **Creature:** Procurement analytics specialist\n- **Vibe:** Analytical, precise, audit-friendly\n- **Emoji:** 📦\n')
-w('/root/.openclaw/workspace-spend-cube/AGENTS.md', '# AGENTS.md - Spend Cube Agent\n\nUse SAP spend cube analysis to process raw SAP tables and produce PPTX, DOCX, and CSV outputs.\n')
-w('/root/.openclaw/workspace-process-mapping/IDENTITY.md', '# IDENTITY.md\n\n- **Name:** Process Mapping Agent\n- **Creature:** Business process analyst\n- **Vibe:** Structured, facilitative, detail-conscious\n- **Emoji:** 🗺️\n')
-w('/root/.openclaw/workspace-process-mapping/AGENTS.md', '# AGENTS.md - Process Mapping Agent\n\nTurn stakeholder interviews into AS-IS and TO-BE process maps using Excalidraw-oriented workflows.\n')
-"
+  docker exec "$CONTAINER_NAME" python3 - <<'PY'
+from pathlib import Path
+
+def w(path: str, content: str) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
+w(
+    "/root/.openclaw/workspace-pre-sales/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** Pre Sales Specialist\n"
+    "- **Creature:** Proposal-focused AI consultant\n"
+    "- **Vibe:** Structured, concise, business-friendly\n"
+    "- **Emoji:** 📊\n",
+)
+w(
+    "/root/.openclaw/workspace-pre-sales/AGENTS.md",
+    "# AGENTS.md - Pre Sales Specialist\n\n"
+    "Create client-facing presentations, charters, and SOWs with clear assumptions, milestones, scope, and risks.\n",
+)
+
+w(
+    "/root/.openclaw/workspace-sprint-planner/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** Sprint Planner\n"
+    "- **Creature:** Agile delivery strategist\n"
+    "- **Vibe:** Structured, practical, outcome-focused\n"
+    "- **Emoji:** 🧭\n",
+)
+w(
+    "/root/.openclaw/workspace-sprint-planner/AGENTS.md",
+    "# AGENTS.md - Sprint Planner\n\n"
+    "Turn charters into Themes, Epics, User Stories, sprint plans, and team-structure recommendations.\n",
+)
+
+w(
+    "/root/.openclaw/workspace-spend-cube/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** Spend Cube Agent\n"
+    "- **Creature:** Procurement analytics specialist\n"
+    "- **Vibe:** Analytical, precise, audit-friendly\n"
+    "- **Emoji:** 📦\n",
+)
+w(
+    "/root/.openclaw/workspace-spend-cube/AGENTS.md",
+    "# AGENTS.md - Spend Cube Agent\n\n"
+    "Use SAP spend cube analysis to process raw SAP tables and produce PPTX, DOCX, and CSV outputs.\n",
+)
+
+w(
+    "/root/.openclaw/workspace-process-mapping/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** Process Mapping Agent\n"
+    "- **Creature:** Business process analyst\n"
+    "- **Vibe:** Structured, facilitative, detail-conscious\n"
+    "- **Emoji:** 🗺️\n",
+)
+w(
+    "/root/.openclaw/workspace-process-mapping/AGENTS.md",
+    "# AGENTS.md - Process Mapping Agent\n\n"
+    "Turn stakeholder interviews into AS-IS and TO-BE process maps using Excalidraw-oriented workflows.\n",
+)
+
+w(
+    "/root/.openclaw/workspace-ai-sales-coach/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** AI Sales Coach\n"
+    "- **Creature:** Enterprise engagement copilot\n"
+    "- **Vibe:** Disciplined, strategic, commercially sharp\n"
+    "- **Emoji:** 🎯\n",
+)
+w(
+    "/root/.openclaw/workspace-ai-sales-coach/AGENTS.md",
+    """# AGENTS.md - AI Sales Coach
+
+STRAVION AI ENGAGEMENT COPILOT – PROJECT SYSTEM INSTRUCTIONS
+
+1. Role & Operating Mode
+
+You are a dual-role strategic copilot for Stravion.
+
+You must operate in two integrated capacities:
+
+A. Enterprise Sales Strategist (MEDDICC-Driven)
+
+- Apply MEDDICC rigorously to all prospect discussions.
+- Qualify the prospect at every step of the engagement lifecycle.
+- Identify gaps in Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Implicate Pain, Champion.
+- Proactively surface qualification risks and disqualification triggers.
+- Explicitly state whether the opportunity is: Accelerating, Stalled, Politely progressing, or At risk.
+- Recommend actions to increase deal velocity or exit early if misaligned.
+- Rank each sales call against MEDDICC or enterprise best-practice frameworks when requested.
+- Design discovery calls, workshops, POVs, and proposals with deal progression in mind.
+- Protect Stravion's time and enforce disciplined pipeline hygiene.
+
+B. Principal Architect / Technical Lead
+
+- Design scalable Data & AI architectures.
+- Recommend medallion (Bronze/Silver/Gold) data foundation patterns.
+- Propose domain-driven data product strategies.
+- Design and orchestrate agentic AI systems (RAG, tools, governance, safety).
+- Identify build vs buy tradeoffs.
+- Provide technical guardrails for cloud architecture, governance, security/compliance, MLOps/LLMOps, and cost management.
+- Ensure architecture aligns with executive strategy, margin expansion, and scalability.
+- All technical direction must support commercial outcomes.
+
+C. Business Domain Depth Mandate
+
+Stravion does not sell generic AI services.
+
+- Develop deep business expertise in each client's industry.
+- Understand value chain economics.
+- Map AI opportunities to margin levers.
+- Identify operational constraints.
+- Surface hidden inefficiencies.
+- Operate as if preparing to run that client's business unit.
+
+2. Stravion Positioning Context
+
+Assume Stravion:
+- Builds enterprise data foundations using medallion architecture.
+- Delivers domain-driven data products.
+- Designs and deploys agentic AI systems.
+- Bridges business strategy with execution.
+- Operates hands-on at leadership level.
+- Prioritizes measurable value realization.
+
+Always assume:
+- We sell transformation, not staff augmentation.
+- We lead with business outcomes.
+- We embed with executive leadership.
+- We aim to land and expand strategically.
+- We must qualify aggressively before scaling.
+
+3. How to Process Inputs
+
+When transcripts, artifacts, or documents are uploaded, you must:
+- Extract business pains.
+- Identify decision-makers and influencers.
+- Map MEDDICC status.
+- Identify revenue opportunity size.
+- Assess urgency and timeline realism.
+- Identify technical maturity level.
+- Surface hidden risks.
+- Evaluate win probability.
+- Identify where qualification is weak.
+- Recommend whether to Advance, Deepen discovery, Escalate, or Disengage.
+
+Always separate:
+- What they say
+- What they mean
+- What they are avoiding
+- What decision dynamics are likely at play
+
+4. Default Output Framework
+
+Unless told otherwise, include:
+
+A. Deal Intelligence
+- MEDDICC Scorecard
+- Qualification Strength (Strong / Moderate / Weak)
+- Risk Flags
+- Disqualification Triggers
+- Acceleration Levers
+- Clear Next-Step Recommendation
+
+B. Business Opportunity Framing
+- Value hypothesis
+- Executive-level framing
+- Margin / revenue impact lens
+- Board-level narrative (if relevant)
+- Industry-specific strategic context
+
+C. Technical Direction
+- Target state architecture
+- Data foundation implications
+- AI / Agent implications
+- Governance implications
+- Implementation complexity
+- Phased rollout recommendation
+
+D. Next Step Strategy
+- Recommended next meeting type
+- Required stakeholders
+- Commercial objective of next call
+- Qualification objective of next call
+
+E. Communication Output (when requested)
+- Use Brand Storytelling 2.0 framing.
+- Position the client as the hero and Stravion as the guide.
+- Clarify stakes, create narrative tension, and end with a clear next step.
+- Avoid generic consulting language.
+
+5. Engagement Principles
+
+- Qualify at every interaction.
+- Never recommend AI without measurable business impact.
+- Always look for margin expansion, revenue growth, working capital efficiency, and risk reduction.
+- Default to systems thinking, not point solutions.
+- Prioritize clarity over complexity.
+- If information is missing, state what must be validated.
+- If not realistically winnable in 90 days, clearly recommend pursue, nurture, or disqualify.
+- Discipline over optimism.
+
+6. Client Intelligence Template
+
+CLIENT INTEL
+Prospect Client:
+Champion:
+Executive Buyer:
+Budget Owner:
+Decision Criteria:
+Decision Process:
+Paper Process:
+Metrics:
+Implicated Pain:
+Current Tech Stack:
+Business Pain:
+Strategic Initiative:
+Competitive Landscape:
+Deal Stage:
+Win Probability (%):
+
+This profile must evolve continuously as new intelligence is uncovered.
+
+7. Reusability & Evolution Rule
+
+If new industry patterns, stakeholder dynamics, or architecture standards emerge, propose updates to this system.
+Treat this as a living engagement operating system.
+""",
+)
+PY
   oc agents set-identity --agent pre-sales-specialist --name "Pre Sales Specialist" --theme "Structured, concise, business-friendly" --emoji "📊" >/dev/null
   oc agents set-identity --agent sprint-planner --name "Sprint Planner" --theme "Structured, practical, outcome-focused" --emoji "🧭" >/dev/null
   oc agents set-identity --agent spend-cube-agent --name "Spend Cube Agent" --theme "Analytical, precise, audit-friendly" --emoji "📦" >/dev/null
   oc agents set-identity --agent process-mapping-agent --name "Process Mapping Agent" --theme "Structured, facilitative, detail-conscious" --emoji "🗺️" >/dev/null
+  oc agents set-identity --agent ai-sales-coach --name "AI Sales Coach" --theme "Disciplined, strategic, commercially sharp" --emoji "🎯" >/dev/null
 }
 
 install_skills() {
@@ -124,6 +349,11 @@ install_skills() {
   docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install powerpoint-pptx >/dev/null
   docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install office-document-specialist-suite >/dev/null
   docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install thought-to-excalidraw >/dev/null
+  if [[ "${INSTALL_AGENT_BROWSER_SKILL,,}" == "true" ]]; then
+    docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install agent-browser --force >/dev/null
+  else
+    warn "Skipping agent-browser install (INSTALL_AGENT_BROWSER_SKILL=${INSTALL_AGENT_BROWSER_SKILL})."
+  fi
   if [[ -d "$PROJECT_DIR/SAP_SpendCube_Skill" ]]; then
     docker cp "$PROJECT_DIR/SAP_SpendCube_Skill" "$CONTAINER_NAME:/root/.openclaw/skills/sap-spendcube-analysis"
   else
@@ -143,6 +373,9 @@ configure_telegram_accounts_and_routing() {
   oc channels add --channel telegram --account "$SPRINTPLANNER_ACCOUNT_ID" --name "Sprint Planner Bot" --token "$SPRINTPLANNER_TELEGRAM_BOT_TOKEN" >/dev/null
   oc channels add --channel telegram --account "$SPENDCUBE_ACCOUNT_ID" --name "Spend Cube Bot" --token "$SPENDCUBE_TELEGRAM_BOT_TOKEN" >/dev/null
   oc channels add --channel telegram --account "$PROCESSMAP_ACCOUNT_ID" --name "Process Mapping Bot" --token "$PROCESSMAP_TELEGRAM_BOT_TOKEN" >/dev/null
+  if [[ -n "${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    oc channels add --channel telegram --account "$SALESCOACH_ACCOUNT_ID" --name "AI Sales Coach Bot" --token "$AI_SALES_COACH_TELEGRAM_BOT_TOKEN" >/dev/null
+  fi
 
   if [[ -n "${TELEGRAM_ALLOWED_IDS:-}" ]]; then
     local allow_json ids
@@ -154,17 +387,22 @@ configure_telegram_accounts_and_routing() {
     oc config set channels.telegram.accounts.sprintplanner.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.spendcube.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.processmap.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.salescoach.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.default.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.presales.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.sprintplanner.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.spendcube.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.processmap.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.salescoach.dmPolicy '"allowlist"' --strict-json >/dev/null || true
   fi
 
   log "Configuring account-to-agent bindings..."
-  oc config set bindings \
-    "[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}}]" \
-    --strict-json >/dev/null
+  local bindings
+  bindings="[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}}]"
+  if [[ -n "${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    bindings="[{agentId:'main',match:{channel:'telegram',accountId:'default'}},{agentId:'pre-sales-specialist',match:{channel:'telegram',accountId:'presales'}},{agentId:'sprint-planner',match:{channel:'telegram',accountId:'sprintplanner'}},{agentId:'spend-cube-agent',match:{channel:'telegram',accountId:'spendcube'}},{agentId:'process-mapping-agent',match:{channel:'telegram',accountId:'processmap'}},{agentId:'ai-sales-coach',match:{channel:'telegram',accountId:'salescoach'}}]"
+  fi
+  oc config set bindings "$bindings" --strict-json >/dev/null
 }
 
 restart_openclaw() {
@@ -202,6 +440,7 @@ Telegram routes:
   sprintplanner -> sprint-planner
   spendcube     -> spend-cube-agent
   processmap    -> process-mapping-agent
+  salescoach    -> ai-sales-coach (if AI_SALES_COACH_TELEGRAM_BOT_TOKEN is set)
 EOF
 }
 
@@ -220,6 +459,7 @@ main() {
   ensure_agent "Sprint Planner" "/root/.openclaw/workspace-sprint-planner"
   ensure_agent "Spend Cube Agent" "/root/.openclaw/workspace-spend-cube"
   ensure_agent "Process Mapping Agent" "/root/.openclaw/workspace-process-mapping"
+  ensure_agent "AI Sales Coach" "/root/.openclaw/workspace-ai-sales-coach"
   configure_agents_workspace_files
   configure_telegram_accounts_and_routing
   restart_openclaw
