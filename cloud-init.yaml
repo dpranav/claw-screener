@@ -39,6 +39,8 @@ write_files:
       # AI_SALES_COACH_TELEGRAM_BOT_TOKEN=replace_salescoach_bot_token
       # Optional dedicated Stravy GTM bot token
       # STRAVY_GTM_TELEGRAM_BOT_TOKEN=replace_stravy_gtm_bot_token
+      # Optional dedicated AI CFO bot token
+      # AI_CFO_TELEGRAM_BOT_TOKEN=replace_ai_cfo_bot_token
 
       # Skill API keys
       GEMINI_API_KEY=replace_gemini_key
@@ -119,6 +121,7 @@ write_files:
       PROCESSMAP_TELEGRAM_BOT_TOKEN=${PROCESSMAP_TELEGRAM_BOT_TOKEN:-}
       AI_SALES_COACH_TELEGRAM_BOT_TOKEN=${AI_SALES_COACH_TELEGRAM_BOT_TOKEN:-}
       STRAVY_GTM_TELEGRAM_BOT_TOKEN=${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}
+      AI_CFO_TELEGRAM_BOT_TOKEN=${AI_CFO_TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-allowlist}
       TELEGRAM_ALLOWED_IDS=${TELEGRAM_ALLOWED_IDS:-}
       EOF

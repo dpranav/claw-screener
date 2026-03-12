@@ -121,6 +121,7 @@ You can connect this screener to Telegram so you can interact with OpenClaw dire
    # TELEGRAM_ALLOWED_IDS=123456789,987654321
    # AI_SALES_COACH_TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
    # STRAVY_GTM_TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+   # AI_CFO_TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
    # TELEGRAM_GROUP_IDS=-1001234567890
    # TELEGRAM_GROUP_REQUIRE_MENTION=true
    INSTALL_AGENT_BROWSER_SKILL=true
@@ -134,6 +135,7 @@ You can connect this screener to Telegram so you can interact with OpenClaw dire
    | `TELEGRAM_ALLOWED_IDS` | Comma-separated Telegram user IDs (for `allowlist` mode) | — |
    | `AI_SALES_COACH_TELEGRAM_BOT_TOKEN` | Optional dedicated bot token for `AI Sales Coach` agent routing | — |
    | `STRAVY_GTM_TELEGRAM_BOT_TOKEN` | Optional dedicated bot token for `Stravy GTM Agent` routing | — |
+   | `AI_CFO_TELEGRAM_BOT_TOKEN` | Optional dedicated bot token for `AI CFO` routing | — |
    | `TELEGRAM_GROUP_IDS` | Comma-separated Telegram group IDs allowed when `groupPolicy=allowlist` | — |
    | `TELEGRAM_GROUP_REQUIRE_MENTION` | Require `@botusername` mentions inside allowlisted groups | `true` |
    | `INSTALL_AGENT_BROWSER_SKILL` | Auto-install `agent-browser` skill during bootstrap (uses `--force`) | `true` |

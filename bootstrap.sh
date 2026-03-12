@@ -24,6 +24,7 @@ SPENDCUBE_ACCOUNT_ID="${SPENDCUBE_ACCOUNT_ID:-spendcube}"
 PROCESSMAP_ACCOUNT_ID="${PROCESSMAP_ACCOUNT_ID:-processmap}"
 SALESCOACH_ACCOUNT_ID="${SALESCOACH_ACCOUNT_ID:-salescoach}"
 STRAVY_GTM_ACCOUNT_ID="${STRAVY_GTM_ACCOUNT_ID:-stravygtm}"
+AICFO_ACCOUNT_ID="${AICFO_ACCOUNT_ID:-aicfo}"
 
 log() { printf "\n[bootstrap] %s\n" "$*"; }
 warn() { printf "\n[bootstrap][warn] %s\n" "$*" >&2; }
@@ -398,6 +399,21 @@ Starter prompts:
 \"Generate an executive GTM brief: pipeline risks, top growth bets, channel performance hypotheses, and decisions needed this week.\"
 """,
 )
+w(
+    "/root/.openclaw/workspace-ai-cfo/IDENTITY.md",
+    "# IDENTITY.md\n\n"
+    "- **Name:** AI CFO\n"
+    "- **Creature:** Financial planning and performance copilot\n"
+    "- **Vibe:** Analytical, practical, risk-aware\n"
+    "- **Emoji:** 💼\n",
+)
+w(
+    "/root/.openclaw/workspace-ai-cfo/AGENTS.md",
+    "# AGENTS.md - AI CFO\n\n"
+    "You are AI CFO. Focus on financial planning, forecasting, budgeting, cash flow, unit economics, and board-ready reporting. "
+    "Use installed finance skills (cfo, excel-xlsx, finance-report-analyzer) when relevant. "
+    "Default output: financial diagnosis, assumptions, scenario analysis (base/upside/downside), key risks, and next actions with owners and timelines.\n",
+)
 PY
   oc agents set-identity --agent pre-sales-specialist --name "Pre Sales Specialist" --theme "Structured, concise, business-friendly" --emoji "📊" >/dev/null
   oc agents set-identity --agent sprint-planner --name "Sprint Planner" --theme "Structured, practical, outcome-focused" --emoji "🧭" >/dev/null
@@ -405,6 +421,7 @@ PY
   oc agents set-identity --agent process-mapping-agent --name "Process Mapping Agent" --theme "Structured, facilitative, detail-conscious" --emoji "🗺️" >/dev/null
   oc agents set-identity --agent ai-sales-coach --name "AI Sales Coach" --theme "Disciplined, strategic, commercially sharp" --emoji "🎯" >/dev/null
   oc agents set-identity --agent stravy-gtm-agent --name "Stravy GTM Agent" --theme "Commercially sharp, evidence-driven, execution-oriented" --emoji "🚀" >/dev/null
+  oc agents set-identity --agent ai-cfo --name "AI CFO" --theme "Analytical, practical, risk-aware" --emoji "💼" >/dev/null
 }
 
 install_skills() {
@@ -417,6 +434,15 @@ install_skills() {
   fi
   if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install thought-to-excalidraw --force >/dev/null; then
     warn "Failed to install/update thought-to-excalidraw (continuing)."
+  fi
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install cfo --force >/dev/null; then
+    warn "Failed to install/update cfo (continuing)."
+  fi
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install excel-xlsx --force >/dev/null; then
+    warn "Failed to install/update excel-xlsx (continuing)."
+  fi
+  if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install finance-report-analyzer --force >/dev/null; then
+    warn "Failed to install/update finance-report-analyzer (continuing)."
   fi
   if [[ "${INSTALL_AGENT_BROWSER_SKILL,,}" == "true" ]]; then
     if ! docker exec "$CONTAINER_NAME" npx clawhub --workdir /root/.openclaw --dir skills install agent-browser --force >/dev/null; then
@@ -479,6 +505,9 @@ configure_telegram_accounts_and_routing() {
   if [[ -n "${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}" ]]; then
     oc channels add --channel telegram --account "$STRAVY_GTM_ACCOUNT_ID" --name "Stravy GTM Agent Bot" --token "$STRAVY_GTM_TELEGRAM_BOT_TOKEN" >/dev/null
   fi
+  if [[ -n "${AI_CFO_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    oc channels add --channel telegram --account "$AICFO_ACCOUNT_ID" --name "AI CFO Bot" --token "$AI_CFO_TELEGRAM_BOT_TOKEN" >/dev/null
+  fi
 
   if [[ -n "${TELEGRAM_ALLOWED_IDS:-}" ]]; then
     local allow_json ids
@@ -492,6 +521,7 @@ configure_telegram_accounts_and_routing() {
     oc config set channels.telegram.accounts.processmap.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.salescoach.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.stravygtm.allowFrom "$allow_json" --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.aicfo.allowFrom "$allow_json" --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.default.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.presales.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.sprintplanner.dmPolicy '"allowlist"' --strict-json >/dev/null || true
@@ -499,6 +529,7 @@ configure_telegram_accounts_and_routing() {
     oc config set channels.telegram.accounts.processmap.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.salescoach.dmPolicy '"allowlist"' --strict-json >/dev/null || true
     oc config set channels.telegram.accounts.stravygtm.dmPolicy '"allowlist"' --strict-json >/dev/null || true
+    oc config set channels.telegram.accounts.aicfo.dmPolicy '"allowlist"' --strict-json >/dev/null || true
   fi
 
   log "Configuring account-to-agent bindings..."
@@ -509,6 +540,9 @@ configure_telegram_accounts_and_routing() {
   fi
   if [[ -n "${STRAVY_GTM_TELEGRAM_BOT_TOKEN:-}" ]]; then
     bindings="${bindings%]},{agentId:'stravy-gtm-agent',match:{channel:'telegram',accountId:'stravygtm'}}]"
+  fi
+  if [[ -n "${AI_CFO_TELEGRAM_BOT_TOKEN:-}" ]]; then
+    bindings="${bindings%]},{agentId:'ai-cfo',match:{channel:'telegram',accountId:'aicfo'}}]"
   fi
   oc config set bindings "$bindings" --strict-json >/dev/null
 }
@@ -550,6 +584,7 @@ Telegram routes:
   processmap    -> process-mapping-agent
   salescoach    -> ai-sales-coach (if AI_SALES_COACH_TELEGRAM_BOT_TOKEN is set)
   stravygtm     -> stravy-gtm-agent (if STRAVY_GTM_TELEGRAM_BOT_TOKEN is set)
+  aicfo         -> ai-cfo (if AI_CFO_TELEGRAM_BOT_TOKEN is set)
 EOF
 }
 
@@ -570,6 +605,7 @@ main() {
   ensure_agent "Process Mapping Agent" "/root/.openclaw/workspace-process-mapping"
   ensure_agent "AI Sales Coach" "/root/.openclaw/workspace-ai-sales-coach"
   ensure_agent "Stravy GTM Agent" "/root/.openclaw/workspace-stravy-gtm"
+  ensure_agent "AI CFO" "/root/.openclaw/workspace-ai-cfo"
   configure_agents_workspace_files
   configure_telegram_accounts_and_routing
   restart_openclaw
