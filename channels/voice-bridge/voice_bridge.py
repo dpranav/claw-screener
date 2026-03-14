@@ -1,12 +1,15 @@
 import asyncio
+import hmac
+import json
 import logging
 import os
+import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import requests
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, WebSocket, WebSocketDisconnect
 
 
 logging.basicConfig(
@@ -24,6 +27,9 @@ def env_bool(name: str, default: bool = False) -> bool:
 VOICE_ENABLED = env_bool("VOICE_CHANNEL_ENABLED", False)
 HOOK_URL = os.getenv("OPENCLAW_HOOK_URL", "http://openclaw:18789/hooks/agent")
 AUTH_TOKEN = os.getenv("OPENCLAW_AUTH_TOKEN", "")
+INVOKE_MODE = os.getenv("OPENCLAW_INVOKE_MODE", "docker_exec").strip().lower()
+OPENCLAW_CONTAINER_NAME = os.getenv("OPENCLAW_CONTAINER_NAME", "openclaw-screener")
+VOICE_API_TOKEN = os.getenv("VOICE_API_TOKEN", "")
 VOICE_AGENT_ID = os.getenv("VOICE_AGENT_ID", "ai-sales-coach")
 MIN_INTERVAL_SECONDS = int(os.getenv("VOICE_MIN_SECONDS_BETWEEN_PROMPTS", "20"))
 MIN_CHARS = int(os.getenv("VOICE_MIN_CHARS_BEFORE_PROMPT", "160"))
@@ -49,19 +55,46 @@ def get_session(session_id: str) -> SessionState:
 
 
 def call_openclaw(transcript_block: str, session_id: str) -> str:
+    prompt = (
+        "You are assisting during a live client call.\n"
+        "Return only concise, immediate coaching guidance.\n"
+        "Format:\n"
+        "1) Ask next (max 3 bullets)\n"
+        "2) Risk to watch (1 bullet)\n"
+        "3) Suggested pivot (1 bullet)\n\n"
+        f"Session: {session_id}\n"
+        f"Transcript window:\n{transcript_block[-MAX_CONTEXT_CHARS:]}"
+    )
+
+    if INVOKE_MODE == "docker_exec":
+        cmd = [
+            "docker",
+            "exec",
+            OPENCLAW_CONTAINER_NAME,
+            "openclaw",
+            "agent",
+            "--agent",
+            VOICE_AGENT_ID,
+            "--message",
+            prompt,
+            "--json",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180, check=False)
+        if proc.returncode != 0:
+            raise RuntimeError(f"openclaw agent failed ({proc.returncode}): {proc.stderr.strip()[:400]}")
+        raw = (proc.stdout or "").strip()
+        data = json.loads(raw) if raw else {}
+        payloads = (((data.get("result") or {}).get("payloads")) or [])
+        for item in payloads:
+            text = item.get("text") if isinstance(item, dict) else None
+            if isinstance(text, str) and text.strip():
+                return text.strip()[:MAX_RESPONSE_CHARS]
+        return raw[:MAX_RESPONSE_CHARS]
+
     payload = {
         "agentId": VOICE_AGENT_ID,
         "name": "Live Voice Coach",
-        "message": (
-            "You are assisting during a live client call.\n"
-            "Return only concise, immediate coaching guidance.\n"
-            "Format:\n"
-            "1) Ask next (max 3 bullets)\n"
-            "2) Risk to watch (1 bullet)\n"
-            "3) Suggested pivot (1 bullet)\n\n"
-            f"Session: {session_id}\n"
-            f"Transcript window:\n{transcript_block[-MAX_CONTEXT_CHARS:]}"
-        ),
+        "message": prompt,
     }
 
     headers = {"Content-Type": "application/json"}
@@ -80,6 +113,22 @@ def call_openclaw(transcript_block: str, session_id: str) -> str:
         if isinstance(val, str) and val.strip():
             return val.strip()[:MAX_RESPONSE_CHARS]
     return str(data)[:MAX_RESPONSE_CHARS]
+
+
+def extract_token(auth_header: Optional[str], header_token: Optional[str], query_token: Optional[str]) -> str:
+    if query_token:
+        return query_token.strip()
+    if header_token:
+        return header_token.strip()
+    if auth_header and auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip()
+    return ""
+
+
+def is_authorized(token: str) -> bool:
+    if not VOICE_API_TOKEN:
+        return False
+    return hmac.compare_digest(token or "", VOICE_API_TOKEN)
 
 
 async def maybe_get_tip(session_id: str, new_line: str, force: bool = False) -> str:
@@ -109,7 +158,15 @@ def health() -> dict:
 
 
 @app.post("/ingest")
-async def ingest(payload: dict) -> dict:
+async def ingest(
+    payload: dict,
+    authorization: Optional[str] = Header(default=None),
+    x_voice_token: Optional[str] = Header(default=None),
+) -> dict:
+    token = extract_token(authorization, x_voice_token, None)
+    if not is_authorized(token):
+        return {"ok": False, "error": "unauthorized"}
+
     session_id = str(payload.get("sessionId", "default"))
     text = str(payload.get("text", "")).strip()
     is_final = bool(payload.get("final", False))
@@ -122,6 +179,15 @@ async def ingest(payload: dict) -> dict:
 
 @app.websocket("/ws/live-coach/{session_id}")
 async def live_coach(ws: WebSocket, session_id: str) -> None:
+    token = extract_token(
+        ws.headers.get("authorization"),
+        ws.headers.get("x-voice-token"),
+        ws.query_params.get("token"),
+    )
+    if not is_authorized(token):
+        await ws.close(code=1008, reason="unauthorized")
+        return
+
     await ws.accept()
     await ws.send_json(
         {

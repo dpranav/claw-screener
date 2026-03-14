@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "VOICE_BRIDGE_URL": "https://voice.proqaai.net/ingest",
+    "VOICE_API_TOKEN": "replace-with-your-voice-token",
+    "INTEGRATION_TOKEN": "replace-with-your-integration-token",
+    "REQUEST_TIMEOUT_SECONDS": "30",
+    "TEAMS_OUTGOING_WEBHOOK_URL": ""
+  }
+}

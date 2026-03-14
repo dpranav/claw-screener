@@ -235,6 +235,7 @@ This channel accepts live transcript chunks and returns real-time coaching promp
 VOICE_CHANNEL_ENABLED=true
 VOICE_AGENT_ID=ai-sales-coach
 VOICE_BRIDGE_PORT=8787
+VOICE_API_TOKEN=<long-random-token>
 VOICE_MIN_SECONDS_BETWEEN_PROMPTS=20
 VOICE_MIN_CHARS_BEFORE_PROMPT=160
 VOICE_MAX_CONTEXT_CHARS=5000
@@ -249,16 +250,35 @@ curl http://127.0.0.1:8787/health
 
 ### Ingest options
 
-- HTTP: `POST /ingest` with JSON `{ "sessionId": "call-001", "text": "...", "final": false }`
-- WebSocket: connect to `/ws/live-coach/{sessionId}` and stream JSON `{ "text": "...", "final": false }`
+- HTTP: `POST /ingest` with header `X-Voice-Token: <VOICE_API_TOKEN>` and JSON `{ "sessionId": "call-001", "text": "...", "final": false }`
+- WebSocket: connect to `/ws/live-coach/{sessionId}?token=<VOICE_API_TOKEN>` and stream JSON `{ "text": "...", "final": false }`
 
 ### Example
 
 ```bash
 curl -X POST http://127.0.0.1:8787/ingest \
+  -H "X-Voice-Token: <VOICE_API_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"sessionId":"demo-call","text":"Client says budget is not approved yet, but they need Q2 rollout","final":true}'
 ```
+
+## Microsoft Teams Integration
+
+Use the Azure Function template in `integrations/teams-azure-function` to connect Teams transcript chunks to the `ai-sales-coach` voice channel.
+
+Flow:
+1. Teams workflow/bot sends transcript chunks to the Function endpoint (`/api/teams-transcript`).
+2. Function validates `x-integration-token`.
+3. Function forwards chunk to `https://voice.proqaai.net/ingest` with `X-Voice-Token`.
+4. Function returns coaching tip and can optionally post it to a Teams Incoming Webhook.
+
+See setup and deploy instructions in:
+- `integrations/teams-azure-function/README.md`
+
+## Project Documentation
+
+- Rebuild runbook: `docs/rebuild-from-scratch-runbook.md`
+- Technical architecture: `docs/technical-architecture.md`
 
 ## Buffett's 10 Formulas
 
