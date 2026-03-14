@@ -159,6 +159,107 @@ OPENCLAW_ALLOW_HOST_HEADER_FALLBACK=false
 
 5. **Start chatting** -- open your bot in Telegram and send `/start`. If using `pairing` mode, the gateway will give you an approval code on first contact.
 
+## Email Interface (Non-Technical Friendly)
+
+This channel lets users email an address like `presales@...` or `cfo@...` and have the right OpenClaw agent process it.
+
+### How it works
+
+1. `email-bridge` polls your inbox via Microsoft Graph (recommended) or IMAP.
+2. It maps recipient aliases to agent IDs.
+3. It invokes the target agent via `openclaw agent` inside the OpenClaw container.
+4. Optional: sends email reply (Graph when `EMAIL_PROVIDER=graph`, SMTP when `imap`).
+
+### Configure `.env`
+
+```env
+OPENCLAW_HOOK_URL=http://openclaw:18789/hooks/agent
+OPENCLAW_INVOKE_MODE=docker_exec
+OPENCLAW_CONTAINER_NAME=openclaw-screener
+
+EMAIL_CHANNEL_ENABLED=true
+EMAIL_PROVIDER=graph
+
+# Preferred: Microsoft Graph app-only (O365)
+EMAIL_GRAPH_TENANT_ID=<tenant-id>
+EMAIL_GRAPH_CLIENT_ID=<client-id>
+EMAIL_GRAPH_CLIENT_SECRET=<client-secret>
+EMAIL_GRAPH_USER_ID=agents@stravion.ai
+EMAIL_GRAPH_MARK_READ=false
+EMAIL_PROCESSED_IDS_PATH=/state/email_bridge_processed_ids.txt
+
+# Optional fallback: IMAP mode
+EMAIL_IMAP_HOST=imap.office365.com
+EMAIL_IMAP_PORT=993
+EMAIL_IMAP_USER=agents@stravion.ai
+EMAIL_IMAP_PASSWORD=your-app-password
+EMAIL_IMAP_FOLDER=INBOX
+EMAIL_POLL_SECONDS=30
+EMAIL_AGENT_ROUTING=presales=pre-sales-specialist,sprint=sprint-planner,spendcube=spend-cube-agent,processmap=process-mapping-agent,salescoach=ai-sales-coach,stravygtm=stravy-gtm-agent,cfo=ai-cfo,default=main
+EMAIL_SUBJECT_AGENT_ROUTING=[presales]=pre-sales-specialist,[sprint]=sprint-planner,[spendcube]=spend-cube-agent,[processmap]=process-mapping-agent,[salescoach]=ai-sales-coach,[stravygtm]=stravy-gtm-agent,[cfo]=ai-cfo
+
+# Optional: auto-reply with the agent response
+EMAIL_REPLY_ENABLED=true
+EMAIL_SMTP_HOST=smtp.office365.com
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USER=agents@stravion.ai
+EMAIL_SMTP_PASSWORD=your-app-password
+EMAIL_SMTP_FROM=agents@stravion.ai
+```
+
+Note: with least-privilege Graph permissions (`Mail.Read` + `Mail.Send`), keep `EMAIL_GRAPH_MARK_READ=false`.
+If O365 rewrites aliases to `agents@...` in recipient fields, use subject tags such as `[presales]` to force routing.
+
+### Start
+
+```bash
+docker compose up -d --build
+docker compose logs --tail 120 email-bridge
+```
+
+---
+
+## Voice Channel (Live Meeting Assistant)
+
+This channel accepts live transcript chunks and returns real-time coaching prompts (default agent: `ai-sales-coach`).
+
+### How it works
+
+1. Your meeting/transcription system streams text chunks to `voice-bridge`.
+2. `voice-bridge` batches transcript context.
+3. It calls OpenClaw Hooks API and returns concise "what to ask next" guidance.
+
+### Configure `.env`
+
+```env
+VOICE_CHANNEL_ENABLED=true
+VOICE_AGENT_ID=ai-sales-coach
+VOICE_BRIDGE_PORT=8787
+VOICE_MIN_SECONDS_BETWEEN_PROMPTS=20
+VOICE_MIN_CHARS_BEFORE_PROMPT=160
+VOICE_MAX_CONTEXT_CHARS=5000
+```
+
+### Start
+
+```bash
+docker compose up -d --build
+curl http://127.0.0.1:8787/health
+```
+
+### Ingest options
+
+- HTTP: `POST /ingest` with JSON `{ "sessionId": "call-001", "text": "...", "final": false }`
+- WebSocket: connect to `/ws/live-coach/{sessionId}` and stream JSON `{ "text": "...", "final": false }`
+
+### Example
+
+```bash
+curl -X POST http://127.0.0.1:8787/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"demo-call","text":"Client says budget is not approved yet, but they need Q2 rollout","final":true}'
+```
+
 ## Buffett's 10 Formulas
 
 The fundamental analysis evaluates stocks against Warren Buffett's criteria:

@@ -11,7 +11,36 @@ services:
       - openclaw-data:/root/.openclaw/data
       - watchlist-data:/root
     restart: unless-stopped
+  email-bridge:
+    build: ./channels/email-bridge
+    container_name: openclaw-email-bridge
+    env_file:
+      - .env
+    environment:
+      OPENCLAW_HOOK_URL: "${OPENCLAW_HOOK_URL:-http://openclaw:18789/hooks/agent}"
+      OPENCLAW_INVOKE_MODE: "${OPENCLAW_INVOKE_MODE:-docker_exec}"
+      OPENCLAW_CONTAINER_NAME: "${OPENCLAW_CONTAINER_NAME:-openclaw-screener}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - email-bridge-state:/state
+    depends_on:
+      - openclaw
+    restart: unless-stopped
+
+  voice-bridge:
+    build: ./channels/voice-bridge
+    container_name: openclaw-voice-bridge
+    ports:
+      - "127.0.0.1:${VOICE_BRIDGE_PORT:-8787}:8787"
+    env_file:
+      - .env
+    environment:
+      OPENCLAW_HOOK_URL: "${OPENCLAW_HOOK_URL:-http://openclaw:18789/hooks/agent}"
+    depends_on:
+      - openclaw
+    restart: unless-stopped
 
 volumes:
   openclaw-data:
   watchlist-data:
+  email-bridge-state:

@@ -11,7 +11,7 @@ help:
 	@echo "  make up        - docker compose up -d --build"
 	@echo "  make down      - docker compose down"
 	@echo "  make restart   - docker compose restart"
-	@echo "  make logs      - Tail OpenClaw container logs"
+	@echo "  make logs      - Tail OpenClaw + channel bridge logs"
 	@echo "  make ps        - Show docker compose status"
 
 package:
@@ -38,7 +38,7 @@ restart:
 	@docker compose restart
 
 logs:
-	@docker logs openclaw-screener --tail 120
+	@docker compose logs --tail 120 openclaw email-bridge voice-bridge
 
 ps:
 	@docker compose ps

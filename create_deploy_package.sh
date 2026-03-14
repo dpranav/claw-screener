@@ -41,6 +41,7 @@ copy_if_exists "bun.lock"
 copy_if_exists "tsconfig.json"
 copy_if_exists "src"
 copy_if_exists "scripts"
+copy_if_exists "channels"
 copy_if_exists "SAP_SpendCube_Skill"
 
 # Clean cache/artifact folders from copied tree.
