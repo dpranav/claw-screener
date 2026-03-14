@@ -13,6 +13,7 @@ cd "$PROJECT_DIR"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 CONTAINER_NAME="${CONTAINER_NAME:-openclaw-screener}"
 OPENCLAW_TIMEOUT_SECONDS="${OPENCLAW_TIMEOUT_SECONDS:-180}"
+TEAMS_RT_BOT_PORT="${TEAMS_RT_BOT_PORT:-7090}"
 INSTALL_AGENT_BROWSER_SKILL="${INSTALL_AGENT_BROWSER_SKILL:-true}"
 INSTALL_GOOSE_GTM_SKILLS="${INSTALL_GOOSE_GTM_SKILLS:-true}"
 GOOSE_SKILLS_REPO_URL="${GOOSE_SKILLS_REPO_URL:-https://github.com/dpranav/goose-skills.git}"
@@ -566,6 +567,8 @@ verify() {
   oc skills check | sed -n '1,120p' || true
   curl -s -o /dev/null -w "OpenClaw HTTP %{http_code}\n" "http://localhost:${OPENCLAW_PORT:-18789}/" || true
   curl -s -o /dev/null -w "ClawMetry HTTP %{http_code}\n" "http://localhost:8900/" || true
+  curl -s -o /dev/null -w "Voice Bridge HTTP %{http_code}\n" "http://localhost:${VOICE_BRIDGE_PORT:-8787}/health" || true
+  curl -s -o /dev/null -w "Teams RT Bot HTTP %{http_code}\n" "http://localhost:${TEAMS_RT_BOT_PORT}/health" || true
 }
 
 summary() {
@@ -575,6 +578,8 @@ summary() {
 
 OpenClaw:   http://<VM_IP>:${OPENCLAW_PORT:-18789}
 ClawMetry:  http://<VM_IP>:8900
+Voice API:  http://<VM_IP>:${VOICE_BRIDGE_PORT:-8787}
+Teams RT:   http://<VM_IP>:${TEAMS_RT_BOT_PORT}
 
 Telegram routes:
   default       -> main

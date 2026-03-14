@@ -1,4 +1,4 @@
-.PHONY: help package bootstrap deploy harden up down restart logs ps
+.PHONY: help package bootstrap deploy harden up down restart logs ps up-teams logs-teams
 
 SHELL := /bin/bash
 
@@ -12,6 +12,8 @@ help:
 	@echo "  make down      - docker compose down"
 	@echo "  make restart   - docker compose restart"
 	@echo "  make logs      - Tail OpenClaw + channel bridge logs"
+	@echo "  make up-teams  - Build/start Teams real-time bot only"
+	@echo "  make logs-teams- Tail Teams real-time bot logs"
 	@echo "  make ps        - Show docker compose status"
 
 package:
@@ -38,7 +40,13 @@ restart:
 	@docker compose restart
 
 logs:
-	@docker compose logs --tail 120 openclaw email-bridge voice-bridge
+	@docker compose logs --tail 120 openclaw email-bridge voice-bridge teams-realtime-bot
+
+up-teams:
+	@docker compose up -d --build teams-realtime-bot
+
+logs-teams:
+	@docker compose logs --tail 120 teams-realtime-bot
 
 ps:
 	@docker compose ps

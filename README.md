@@ -275,6 +275,36 @@ Flow:
 See setup and deploy instructions in:
 - `integrations/teams-azure-function/README.md`
 
+For true real-time Teams bot scaffolding (chunk ingest + forwarding + throttling starter):
+- `integrations/teams-realtime-bot/README.md`
+
+### Deploy Teams Real-Time Bot (Docker on VM)
+
+1. Add variables to `.env` (see `.env.example`):
+   - `TEAMS_RT_BOT_PORT`
+   - `TEAMS_RT_BOT_INGEST_TOKEN`
+   - `TEAMS_TRANSCRIPT_FUNCTION_URL`
+   - `INTEGRATION_TOKEN`
+   - `TEAMS_RT_STT_ADAPTER` (`passthrough` or `azure_speech`)
+   - Azure Speech keys when using `azure_speech`
+
+2. Build/start service:
+
+   ```bash
+   make up-teams
+   make logs-teams
+   ```
+
+3. Local health check:
+
+   ```bash
+   curl http://127.0.0.1:${TEAMS_RT_BOT_PORT:-7090}/health
+   ```
+
+4. Optional public endpoint via Nginx + TLS:
+   - Configure reverse proxy: `scripts/azure_teamsrt_nginx.sh`
+   - Issue cert: `scripts/azure_teamsrt_certbot.sh`
+
 ## Project Documentation
 
 - Rebuild runbook: `docs/rebuild-from-scratch-runbook.md`

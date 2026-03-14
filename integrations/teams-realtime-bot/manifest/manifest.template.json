@@ -1,0 +1,46 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "REPLACE-WITH-APP-ID",
+  "packageName": "ai.stravion.teams.realtimecoach",
+  "developer": {
+    "name": "Stravion",
+    "websiteUrl": "https://proqaai.net",
+    "privacyUrl": "https://proqaai.net/privacy",
+    "termsOfUseUrl": "https://proqaai.net/terms"
+  },
+  "name": {
+    "short": "AI Sales Coach RT",
+    "full": "AI Sales Coach Real-Time Bot"
+  },
+  "description": {
+    "short": "Real-time meeting coaching via transcript stream.",
+    "full": "Captures meeting transcript chunks and returns real-time coaching prompts."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#2B7CD3",
+  "bots": [
+    {
+      "botId": "REPLACE-WITH-BOT-APP-ID",
+      "scopes": [
+        "personal",
+        "groupChat",
+        "team"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "REPLACE-WITH-YOUR-BOT-HOST"
+  ]
+}
+

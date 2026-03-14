@@ -44,6 +44,37 @@ services:
       - openclaw
     restart: unless-stopped
 
+  teams-realtime-bot:
+    build: ./integrations/teams-realtime-bot
+    container_name: openclaw-teams-realtime-bot
+    ports:
+      - "127.0.0.1:${TEAMS_RT_BOT_PORT:-7090}:7090"
+    env_file:
+      - .env
+    environment:
+      PORT: "7090"
+      LOG_LEVEL: "${TEAMS_RT_BOT_LOG_LEVEL:-info}"
+      BOT_INGEST_TOKEN: "${TEAMS_RT_BOT_INGEST_TOKEN:-}"
+      TEAMS_TRANSCRIPT_FUNCTION_URL: "${TEAMS_TRANSCRIPT_FUNCTION_URL:-https://stravion-teams-voice-fn.azurewebsites.net/api/teams-transcript?code=replace_function_key}"
+      INTEGRATION_TOKEN: "${INTEGRATION_TOKEN:-replace_integration_token}"
+      REQUEST_TIMEOUT_MS: "${TEAMS_RT_BOT_REQUEST_TIMEOUT_MS:-15000}"
+      TIP_MIN_SECONDS_BETWEEN_POSTS: "${TEAMS_RT_TIP_MIN_SECONDS_BETWEEN_POSTS:-25}"
+      TIP_MIN_CHARS: "${TEAMS_RT_TIP_MIN_CHARS:-20}"
+      TIP_DEDUPE_WINDOW: "${TEAMS_RT_TIP_DEDUPE_WINDOW:-5}"
+      TEAMS_TIP_WEBHOOK_URL: "${TEAMS_TIP_WEBHOOK_URL:-}"
+      MEDIA_FLUSH_SECONDS: "${TEAMS_RT_MEDIA_FLUSH_SECONDS:-4}"
+      MEDIA_MAX_CHARS_PER_CHUNK: "${TEAMS_RT_MEDIA_MAX_CHARS_PER_CHUNK:-1200}"
+      MEDIA_OVERLAP_WORDS: "${TEAMS_RT_MEDIA_OVERLAP_WORDS:-12}"
+      STT_ADAPTER: "${TEAMS_RT_STT_ADAPTER:-passthrough}"
+      AZURE_SPEECH_KEY: "${TEAMS_RT_AZURE_SPEECH_KEY:-}"
+      AZURE_SPEECH_REGION: "${TEAMS_RT_AZURE_SPEECH_REGION:-}"
+      STT_LANGUAGE: "${TEAMS_RT_STT_LANGUAGE:-en-US}"
+      STT_SAMPLE_RATE_HZ: "${TEAMS_RT_STT_SAMPLE_RATE_HZ:-16000}"
+      STT_BITS_PER_SAMPLE: "${TEAMS_RT_STT_BITS_PER_SAMPLE:-16}"
+      STT_CHANNELS: "${TEAMS_RT_STT_CHANNELS:-1}"
+      STT_MIN_CONFIDENCE: "${TEAMS_RT_STT_MIN_CONFIDENCE:-0.25}"
+    restart: unless-stopped
+
 volumes:
   openclaw-data:
   watchlist-data:
